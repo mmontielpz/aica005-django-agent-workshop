@@ -1,0 +1,24 @@
+{
+  "run_id": "A",
+  "provider": null,
+  "model": null,
+  "agent_mode": null,
+  "agent_execution_status": "NOT_OBSERVED",
+  "agent_outcome": "NOT_AVAILABLE",
+  "transcript_ref": null,
+  "setup_start_utc": null,
+  "setup_end_utc": null,
+  "agent_start_utc": null,
+  "agent_end_utc": null,
+  "tokens": {
+    "input": null,
+    "output": null,
+    "total": null,
+    "source_type": "NOT_AVAILABLE",
+    "evidence_ref": null
+  },
+  "tool_calls": {
+    "count": null,
+    "evidence_ref": null
+  }
+}

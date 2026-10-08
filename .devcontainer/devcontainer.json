@@ -1,0 +1,10 @@
+{
+  "name": "AICA005 Django Media workshop",
+  "image": "python:3.7.17-bullseye",
+  "postCreateCommand": "bash scripts/readiness.sh --setup",
+  "customizations": {
+    "vscode": {
+      "extensions": ["GitHub.copilot", "GitHub.copilot-chat"]
+    }
+  }
+}
