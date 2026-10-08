@@ -66,8 +66,11 @@ class PackageFixtureTests(unittest.TestCase):
                 self.assertNotIn('evidence.zip', names)
         results.compare()
         comparison = json.loads((results.REPORTS / 'comparison.json').read_text(encoding='utf-8'))
-        self.assertEqual(comparison['status'], 'PARTIAL')
-        self.assertEqual(comparison['outcome_equivalence'], 'UNKNOWN')
+        self.assertEqual(comparison['status'], 'READY')
+        self.assertEqual(comparison['verification_equivalence'], 'PASS')
+        self.assertEqual(comparison['solution_equivalence'], 'NOT_ESTABLISHED')
+        self.assertEqual(comparison['resource_comparison'], 'INCONCLUSIVE')
+        self.assertEqual(comparison['evidence_completeness'], 'PARTIAL')
         self.assertIsNone(comparison['token_reduction_percent'])
 
     def test_repeated_report_is_idempotent_and_preserves_changed_package(self):
@@ -119,7 +122,8 @@ class PackageFixtureTests(unittest.TestCase):
         results.compare()
         comparison = json.loads((results.REPORTS / 'comparison.json').read_text(encoding='utf-8'))
         self.assertEqual(comparison['status'], 'READY')
-        self.assertEqual(comparison['outcome_equivalence'], 'FAIL')
+        self.assertEqual(comparison['verification_equivalence'], 'FAIL')
+        self.assertEqual(comparison['resource_comparison'], 'INCONCLUSIVE')
         self.assertIsNone(comparison['token_reduction_percent'])
         self.assertTrue(comparison['runs']['A']['verification']['all_passed'])
         self.assertFalse(comparison['runs']['B']['verification']['all_passed'])
