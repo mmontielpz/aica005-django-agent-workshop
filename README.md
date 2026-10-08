@@ -13,13 +13,12 @@ Open this repository in GitHub Codespaces. The post-create command installs the 
 
 ## Controlled A/B procedure
 
-1. Record the environment, Copilot provider/model, Agent mode, account limits, and setup end time. Confirm Copilot access with a read-only request to summarize `TASK.md`.
-2. Reset and confirm the baseline with `bash scripts/reset.sh` and `bash scripts/preflight.sh --check`.
-3. Open [Experiment A](experiments/A-unstructured.md), submit its request in a fresh Agent session, and record agent start/end UTC timestamps. Review the patch.
-4. Independently run `bash scripts/verify.sh A`, then `bash scripts/report.sh A`. Attach the Copilot transcript and any actual provider usage report in `reports/A/`; fill `reports/A/observations.json` from [the template](experiments/observations.template.json) and rerun the report command. Export A evidence outside the Codespace.
-5. Reset and confirm the same baseline. Keep the model, Agent mode, account limits, and verification commands unchanged.
-6. Open [Experiment B](experiments/B-resource-aware.md) in a fresh Agent session. Repeat the same evidence and verification procedure with run ID B, then export B evidence.
-7. Run `python3 scripts/results.py compare`; export `reports/comparison.md` and `reports/comparison.json`.
+1. Open Copilot Chat in Agent mode. Confirm access with a read-only request to summarize `TASK.md`; note the provider/model and available account limits.
+2. Submit the fixed [Experiment A request](experiments/A-unstructured.md) in a fresh Agent session. Approve tool actions as needed. The agent runs reset, preflight, verification, and reporting. Review `reports/A/evidence.zip` and export it **outside the Codespace** before B.
+3. Submit the fixed [Experiment B request](experiments/B-resource-aware.md) in a fresh Agent session with the same model and Agent mode. The agent resets the Django checkout, runs the same checks, packages `reports/B/evidence.zip`, and runs the comparison.
+4. Review `reports/B/evidence.zip`, `reports/comparison.md`, and `reports/comparison.json`; export them outside the Codespace. Check each patch and the actual command logs before interpreting the comparison.
+
+The normal participant path is **Prompt A → Review evidence → Prompt B → Review comparison**. The participant need not type shell commands. The commands remain available for independent review: `bash scripts/preflight.sh --check`, `bash scripts/verify.sh A|B`, `bash scripts/report.sh A|B`, and `python3 scripts/results.py compare`. If Copilot cannot execute a command, record that limit and run the same script manually rather than inferring success.
 
 Use the same task, acceptance criteria, runtime, dependencies, model, mode, available limits, and checks for both runs. Note the account limits in each run's `observations.json`, or write `NOT_AVAILABLE`. A is an unstructured work request. B changes the exploration and resource management policy. Keep setup time separate from agent execution time. Report tokens only from an attached provider record. Missing telemetry stays `NOT_AVAILABLE`; tool calls and elapsed time remain separate observations. A single A/B comparison is exploratory, not statistically conclusive.
 
