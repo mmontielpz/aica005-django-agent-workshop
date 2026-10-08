@@ -40,7 +40,7 @@ bash scripts/report.sh A
 tar --exclude=.git -czf reports/A/candidate.tar.gz -C workspace/django .
 tar -czf /tmp/AICA005-A-evidence.tar.gz reports/A
 ```
-Download `/tmp/AICA005-A-evidence.tar.gz` to your computer using the VS Code Explorer before B. It contains reports and candidate files, including untracked additions.
+In VS Code, use **File → Add Folder to Workspace → /tmp**, then right-click `AICA005-A-evidence.tar.gz` in Explorer and choose **Download** before B. It contains reports and candidate files, including untracked additions.
 
 ## 4. Experiment B
 After exporting A:
