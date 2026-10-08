@@ -47,6 +47,9 @@ def observations(run, run_dir):
     raw = json.loads(path.read_text(encoding='utf-8')) if path.is_file() else {}
     if raw and raw.get('run_id') != run:
         raise ValueError('observations.json run_id must be {}'.format(run))
+    limits_note = raw.get('resource_limits_note', 'NOT_AVAILABLE')
+    if not isinstance(limits_note, str) or not limits_note.strip():
+        raise ValueError('resource_limits_note must be a nonempty string')
     status = raw.get('agent_execution_status', 'NOT_OBSERVED')
     if status not in ('NOT_OBSERVED', 'COMPLETED', 'STOPPED', 'FAILED'):
         raise ValueError('Invalid agent execution status')
@@ -67,6 +70,7 @@ def observations(run, run_dir):
         evidence_file(run_dir, tools.get('evidence_ref'))
     return {
         'provider': raw.get('provider'), 'model': raw.get('model'), 'agent_mode': raw.get('agent_mode'),
+        'resource_limits_note': limits_note,
         'agent_execution_status': status, 'agent_outcome': raw.get('agent_outcome', 'NOT_AVAILABLE'),
         'transcript_ref': transcript, 'setup_start_utc': raw.get('setup_start_utc'),
         'setup_end_utc': raw.get('setup_end_utc'),
@@ -112,6 +116,7 @@ def report(run):
              '- Changed files: {} (git status at report time)'.format(result['changed_files']),
              '- Agent execution: {} ({})'.format(obs['agent_execution_status'], obs['provenance']),
              '- Provider / model / mode: {} / {} / {}'.format(shown(obs['provider']), shown(obs['model']), shown(obs['agent_mode'])),
+             '- Available resource limits: {}'.format(obs['resource_limits_note']),
              '- Setup seconds: {}; agent seconds: {}'.format(shown(obs['setup_seconds']), shown(obs['agent_seconds'])),
              '- Input / output / total tokens: {} / {} / {} (source: {})'.format(shown(obs['tokens']['input']), shown(obs['tokens']['output']), shown(obs['tokens']['total']), obs['tokens']['source_type']),
              '- Tool calls: {} (participant evidence)'.format(shown(obs['tool_calls']['count'])),
@@ -168,6 +173,9 @@ def compare():
         else:
             lines.append('| {} | NOT_OBSERVED | NOT_AVAILABLE | NOT_AVAILABLE | NOT_AVAILABLE | NOT_AVAILABLE |'.format(run))
     lines += ['', 'Token reduction: **{}**'.format('NOT_AVAILABLE' if reduction is None else '{}%'.format(reduction)),
+              'Available limits A / B: {} / {}; confirm that the same account limits applied.'.format(
+                  a['observations'].get('resource_limits_note', 'NOT_AVAILABLE') if a else 'NOT_AVAILABLE',
+                  b['observations'].get('resource_limits_note', 'NOT_AVAILABLE') if b else 'NOT_AVAILABLE'),
               'Formula: (Tokens A − Tokens B) / Tokens A × 100; used only with attached comparable provider records.',
               'Tool calls and elapsed time are separate observables, not token estimates.',
               'A single comparison is exploratory. Judge resource use alongside verification and patch quality.', '']

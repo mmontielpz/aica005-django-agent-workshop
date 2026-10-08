@@ -3,6 +3,7 @@
   "provider": null,
   "model": null,
   "agent_mode": null,
+  "resource_limits_note": "NOT_AVAILABLE",
   "agent_execution_status": "NOT_OBSERVED",
   "agent_outcome": "NOT_AVAILABLE",
   "transcript_ref": null,
