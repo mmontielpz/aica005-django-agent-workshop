@@ -1,76 +1,17 @@
 # Participant Quick Start
-**AI Coding Agents: Resource-Aware Engineering · 60 minutes**
 
-Same task, baseline, model, runtime and verification; different workflow. Run commands from the lab repository root. Use your own Codespace.
+**AI Coding Agents: Resource-Aware Engineering · 60-minute workshop**
 
-## 1. Prepare
-Sign in to GitHub with Codespaces access, remaining compute/storage allowance, and Copilot Chat **Agent** access. [Launch the lab](https://codespaces.new/mmontielpz/aica005-django-agent-workshop/tree/main); choose **2 cores** if available. Public repository access does not grant Copilot access. Free allowances are limited; check your [Codespaces allowance](https://docs.github.com/en/codespaces/troubleshooting/troubleshooting-included-usage) and [Copilot plan](https://docs.github.com/en/copilot/get-started/plans). Record the selected model and account limits. If a fixed model is unavailable, record that limitation; do not claim a same-model comparison.
+Your path is **Prompt A → Evidence A → Prompt B → Evidence B → Benchmark → Engineering Decision**. Copilot runs the scripts; you approve actions, review evidence, and decide what the results support. No shell commands are required in the normal flow.
 
-## 2. Check
-Wait for **LAB READY**, then:
-```bash
-bash scripts/preflight.sh --check
-```
-This checks a clean Django baseline at `93e892bb645b16ebaf287beb5fe7f3ffe8d10408`. Baseline issue failures are expected; unexpected readiness failures require investigation before starting.
+1. [Launch the public Codespaces lab](https://codespaces.new/mmontielpz/aica005-django-agent-workshop/tree/main). Wait for **LAB READY**. Open Copilot Chat in **Agent** mode. Confirm access with a read-only request to summarize `TASK.md`. Note the model and available account limits. Public repository access alone does not grant Copilot access.
+2. Start a fresh Agent chat and paste the complete [Experiment A request](experiments/A-unstructured.md). Copilot resets the pinned Django baseline, runs preflight, investigates, edits, verifies, and packages `reports/A/evidence.zip`. Approve tool actions when required. Review and **download A's ZIP outside the Codespace before B**.
+3. Start a **new Agent chat** for [Experiment B](experiments/B-resource-aware.md). Remove inherited A file attachments or chat context. Keep the same model, mode, runtime, task, baseline, and verification where available. Paste the complete B request. Copilot resets Django, performs the resource-aware workflow, packages `reports/B/evidence.zip`, and runs the comparison.
+4. Review and download `reports/B/evidence.zip`, `reports/comparison.md`, and `reports/comparison.json`. Inspect both patches and test logs. Discuss which observations are verified and which claims remain inconclusive. Verification equivalence is limited to the required checks; it does not prove equal solutions or efficiency.
+5. After confirming your downloads, [stop and delete this Codespace](https://github.com/codespaces) when no longer needed. Deletion is permanent, so export evidence first. Closing the browser tab alone does not stop compute usage.
 
-Select Copilot Chat **Agent** mode and send this read-only request:
-> Read TASK.md and summarize the task and acceptance criteria. Do not edit files or run commands.
+Use a **3–5-minute workshop window per experiment**, with the same **five-minute target** for A and B. Timing starts after preflight and includes investigation, implementation, verification, and reporting. The prompts express a policy target; they do not enforce a process timeout. At the limit, stop further exploration and editing, then attempt verification and evidence packaging where feasible. Record incomplete work honestly.
 
-Confirm a response, record the model, then start a **fresh chat** for A.
+Free-tier limits, model routing, and provider telemetry may vary. If the same model is unavailable, record that limitation. Tokens and cost remain `NOT_AVAILABLE` without actual comparable provider evidence; never estimate tokens from time or tool calls. One A/B pair is exploratory.
 
-## 3. Experiment A
-```bash
-bash scripts/reset.sh
-bash scripts/preflight.sh --check
-```
-Open the [fixed A request](https://github.com/mmontielpz/aica005-django-agent-workshop/blob/main/experiments/A-unstructured.md) and paste its complete request into Agent mode. Observe for **five minutes**, stopping earlier if complete. Record UTC start/end times, permissions and assistance. Do not coach the agent.
-
-Independently inspect and verify, even if the agent already ran tests:
-```bash
-git -C workspace/django diff
-git -C workspace/django status --short
-bash scripts/verify.sh A
-bash scripts/report.sh A
-```
-If verification fails, retain its logs and still run the report command. Passing checks require patch review; report incomplete outcomes honestly.
-
-**Save evidence before resetting.** If missing, copy `experiments/observations.template.json` to `reports/A/observations.json`. Fill the actual provider/model/mode, limits, UTC timestamps, execution status and outcome. Save the real conversation in `reports/A/` and set `transcript_ref` to its filename. Record interventions and patch review in that directory. Keep unavailable numeric metrics `null`; token `source_type` stays `NOT_AVAILABLE` without an attached provider report. Then:
-```bash
-bash scripts/report.sh A
-tar --exclude=.git -czf reports/A/candidate.tar.gz -C workspace/django .
-tar -czf /tmp/AICA005-A-evidence.tar.gz reports/A
-```
-In VS Code, use **File → Add Folder to Workspace → /tmp**, then right-click `AICA005-A-evidence.tar.gz` in Explorer and choose **Download** before B. It contains reports and candidate files, including untracked additions.
-
-## 4. Experiment B
-After exporting A:
-```bash
-bash scripts/reset.sh
-bash scripts/preflight.sh --check
-```
-Reset discards changes and untracked files in `workspace/django/`; `reports/` remains. Start a fresh chat, keep the **same model and conditions**, and paste the [fixed B request](https://github.com/mmontielpz/aica005-django-agent-workshop/blob/main/experiments/B-resource-aware.md). Use the same five-minute window without hints from A.
-```bash
-git -C workspace/django diff
-git -C workspace/django status --short
-bash scripts/verify.sh B
-bash scripts/report.sh B
-```
-Repeat A's evidence procedure in `reports/B/`, setting `run_id` to **B** in its observations file. Attach B's conversation and actual measurements, then:
-```bash
-bash scripts/report.sh B
-tar --exclude=.git -czf reports/B/candidate.tar.gz -C workspace/django .
-tar -czf /tmp/AICA005-B-evidence.tar.gz reports/B
-```
-Download B's archive. Never reuse A's patch or chat.
-
-## 5. Compare
-```bash
-python3 scripts/results.py compare
-tar -czf /tmp/AICA005-all-evidence.tar.gz reports
-```
-Read `reports/comparison.md` and `reports/comparison.json`; download the final archive. Compare verification, reviewed patches, agent duration and observable tool activity. Missing token telemetry is **NOT_AVAILABLE**; never infer tokens from time or tool calls. A generated percentage is not a correctness verdict: interpret savings only after equivalent verified outcomes and comparable provider records. One A/B pair is exploratory; B may fail or consume more.
-
-## 6. Cleanup
-After confirming your downloaded evidence, open [Your codespaces](https://github.com/codespaces), find **this lab's Codespace**, and use **… → Stop codespace**. Closing the tab does not stop it. Stopping ends compute usage, but storage continues consuming quota or incurring charges. When no longer needed, use **… → Delete** after exporting evidence; deletion does not undo accrued usage. See [stopping](https://docs.github.com/en/codespaces/developing-in-a-codespace/stopping-and-starting-a-codespace) and [deleting](https://docs.github.com/en/codespaces/developing-in-a-codespace/deleting-a-codespace).
-
-Detailed contracts and commands: [README](https://github.com/mmontielpz/aica005-django-agent-workshop/blob/main/README.md).
+The [README](README.md), [verification contract](VERIFY.md), and [report contract](REPORT.md) describe the scripts for independent review. If Copilot cannot run them, note that limitation and use the same scripts manually; do not infer success from the prompt alone.

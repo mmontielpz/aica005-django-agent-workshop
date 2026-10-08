@@ -11,6 +11,8 @@ This repository supports a controlled educational experiment. It contains only t
 
 Open this repository in GitHub Codespaces. The post-create command installs the pinned environment, runs baseline checks, and saves `reports/READINESS/summary.txt`. Wait for **LAB READY**. The issue regression should have three expected failures at baseline; unexpected failures mean the lab is not ready.
 
+Start with the concise [Participant Quick Start](PARTICIPANT_QUICK_START.md). The five-minute target for each experiment is a workshop policy, not a process timeout.
+
 ## Controlled A/B procedure
 
 1. Open Copilot Chat in Agent mode. Confirm access with a read-only request to summarize `TASK.md`; note the provider/model and available account limits.

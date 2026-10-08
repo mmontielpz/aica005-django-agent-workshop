@@ -13,13 +13,25 @@
   "agent_end_utc": null,
   "tokens": {
     "input": null,
+    "cached_input": null,
     "output": null,
     "total": null,
     "source_type": "NOT_AVAILABLE",
+    "total_semantics": "NOT_AVAILABLE",
     "evidence_ref": null
   },
   "tool_calls": {
     "count": null,
+    "evidence_ref": null
+  },
+  "verification_attempts": {
+    "count": null,
+    "evidence_ref": null
+  },
+  "cost": {
+    "amount": null,
+    "currency": null,
+    "pricing_basis": null,
     "evidence_ref": null
   }
 }
