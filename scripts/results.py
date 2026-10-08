@@ -325,6 +325,10 @@ def compare():
     evidence_completeness = ('PASS' if packages and transcripts else
                              'PARTIAL' if packages else 'NOT_ESTABLISHED')
     status = 'READY' if a and b else 'PARTIAL'
+    a_paths = a.get('patch_files') if a else None
+    b_paths = b.get('patch_files') if b else None
+    path_comparison = ('are unavailable' if a_paths is None or b_paths is None
+                       else 'match' if a_paths == b_paths else 'differ')
     output = {'schema_version': 1, 'status': status, 'runs': results, 'token_reduction_percent': reduction,
               'token_reduction_provenance': 'PROVIDER_REPORTS_AND_MATCHING_RUN_METADATA' if reduction is not None else 'NOT_AVAILABLE',
               'verification_equivalence': verification_equivalence,
@@ -352,8 +356,7 @@ def compare():
         else:
             lines.append('| {} | NOT_AVAILABLE | NOT_OBSERVED | NOT_AVAILABLE | NOT_AVAILABLE |'.format(run))
     lines += ['', 'VERIFICATION_EQUIVALENCE: **{}** (same pinned task and checks; both passing is limited to tested behavior).'.format(verification_equivalence),
-              'Patch paths {}. Review each `candidate.patch` for design and regression risks.'.format(
-                  'differ' if a and b and a.get('patch_files') != b.get('patch_files') else 'match or are unavailable'),
+              'Patch paths {}. Review each `candidate.patch` for design and regression risks.'.format(path_comparison),
               'SOLUTION_EQUIVALENCE: **NOT_ESTABLISHED**; patch design and quality need human review.', '',
               '## What resources were consumed?', '',
               '| Run | Agent seconds | Input / cached / output / total tokens | Source | Tool calls | Verification attempts | Cost |',
@@ -367,13 +370,14 @@ def compare():
         tokens = obs['tokens']
         cost = obs.get('cost') or {}
         attempts = obs.get('verification_attempts') or {}
+        cost_display = ('NOT_AVAILABLE' if cost.get('amount') is None else
+                        '{} {} (basis: {})'.format(cost['amount'], shown(cost.get('currency')),
+                                                   shown(cost.get('pricing_basis'))))
         lines.append('| {} | {} | {} / {} / {} / {} | {} | {} | {} | {} |'.format(
             run, shown(obs['agent_seconds']), shown(tokens.get('input')),
             shown(tokens.get('cached_input')), shown(tokens.get('output')),
             shown(tokens.get('total')), tokens.get('source_type', 'NOT_AVAILABLE'),
-            shown(obs['tool_calls']['count']), shown(attempts.get('count')),
-            '{} {} ({})'.format(shown(cost.get('amount')), shown(cost.get('currency')),
-                               shown(cost.get('pricing_basis')))))
+            shown(obs['tool_calls']['count']), shown(attempts.get('count')), cost_display))
     lines += ['', 'RESOURCE_COMPARISON: **{}**. Token reduction: **{}**.'.format(
                   resource_comparison, 'NOT_AVAILABLE' if reduction is None else '{}%'.format(reduction)),
               'Exact provider totals require matching model, runtime, measurement definition, and passing checks. Cached input is displayed separately and never added twice.',
