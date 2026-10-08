@@ -1,6 +1,6 @@
 # AICA005 Django coding-agent workshop
 
-This repository is a release candidate for a controlled educational experiment. It contains only the Django Media workload, workshop contracts, and verification tools. It does not contain the Django solution patch or any observed A/B agent result.
+This repository supports a controlled educational experiment. It contains only the Django Media workload, workshop contracts, and verification tools. It does not contain the Django solution patch or any observed A/B agent result.
 
 ## Workload and setup
 
@@ -9,7 +9,7 @@ This repository is a release candidate for a controlled educational experiment. 
 - Historical Django base: `93e892bb645b16ebaf287beb5fe7f3ffe8d10408`
 - Runtime: Python 3.7.17 in the devcontainer
 
-When this candidate is approved and published, open it in GitHub Codespaces. The post-create command installs the pinned environment, runs baseline checks, and saves `reports/READINESS/summary.txt`. Wait for **LAB READY**. The issue regression should have three expected failures at baseline; unexpected failures mean the lab is not ready.
+Open this repository in GitHub Codespaces. The post-create command installs the pinned environment, runs baseline checks, and saves `reports/READINESS/summary.txt`. Wait for **LAB READY**. The issue regression should have three expected failures at baseline; unexpected failures mean the lab is not ready.
 
 ## Controlled A/B procedure
 
