@@ -2,19 +2,105 @@
 """Turn executed checks and participant evidence into reviewable A/B results."""
 import csv
 import datetime
+import hashlib
 import json
+import os
 import pathlib
+import re
 import subprocess
 import sys
+import tempfile
+import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REPORTS = ROOT / 'reports'
 BASE = '93e892bb645b16ebaf287beb5fe7f3ffe8d10408'
 CHECKS = ('issue_regression', 'forms_media', 'admin_widgets')
+DJANGO = ROOT / 'workspace' / 'django'
+MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
+SECRET_PATTERNS = (
+    re.compile(rb'-----BEGIN [A-Z ]*PRIVATE KEY-----'),
+    re.compile(rb'gh[pousr]_[A-Za-z0-9]{25,}'),
+    re.compile(rb'github_pat_[A-Za-z0-9_]{25,}'),
+    re.compile(rb'AKIA[0-9A-Z]{16}'),
+    re.compile(rb'Authorization\s*:\s*Bearer\s+\S+', re.I),
+)
 
 
 def git(*args):
-    return subprocess.check_output(['git', '-C', str(ROOT / 'workspace' / 'django')] + list(args), text=True).strip()
+    return subprocess.check_output(['git', '-C', str(DJANGO)] + list(args), text=True).strip()
+
+
+def safe_content(name, content):
+    if len(content) > MAX_EVIDENCE_BYTES:
+        raise ValueError('Evidence file exceeds 5 MiB: {}'.format(name))
+    if any(pattern.search(content) for pattern in SECRET_PATTERNS):
+        raise ValueError('Possible credential in evidence file: {}'.format(name))
+
+
+def candidate_patch():
+    numstat = subprocess.check_output(['git', '-C', str(DJANGO), 'diff', '--numstat', 'HEAD'])
+    if any(line.split(b'\t', 1)[0] == b'-' for line in numstat.splitlines()):
+        raise ValueError('Binary Django changes need manual review before packaging')
+    patch = subprocess.check_output(['git', '-C', str(DJANGO), 'diff', '--binary', 'HEAD'])
+    paths = subprocess.check_output(['git', '-C', str(DJANGO), 'ls-files', '--others', '--exclude-standard', '-z']).split(b'\0')
+    for raw in paths:
+        if not raw:
+            continue
+        relative = os.fsdecode(raw)
+        source = DJANGO / relative
+        if source.is_symlink() or not source.is_file():
+            raise ValueError('Untracked candidate file is not a regular file: {}'.format(relative))
+        data = source.read_bytes()
+        if b'\0' in data:
+            raise ValueError('Binary untracked file needs manual review: {}'.format(relative))
+        safe_content(relative, data)
+        diff = subprocess.run(['git', 'diff', '--no-index', '--binary', '--', '/dev/null', relative],
+                              cwd=str(DJANGO), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if diff.returncode not in (0, 1):
+            raise ValueError('Could not capture untracked candidate file: {}'.format(relative))
+        patch += diff.stdout
+    safe_content('candidate.patch', patch)
+    return patch
+
+
+def package_evidence(run_dir, checks, obs):
+    names = ['candidate.patch', 'status.tsv', 'report.md', 'result.json']
+    names += [checks[name]['log'] for name in CHECKS]
+    if (run_dir / 'observations.json').is_file():
+        names.append('observations.json')
+    for ref in (obs['transcript_ref'], obs['tokens']['evidence_ref'], obs['tool_calls']['evidence_ref']):
+        if ref is not None:
+            if pathlib.PurePath(ref).suffix.lower() == '.zip':
+                raise ValueError('Nested ZIP evidence is not supported')
+            evidence_file(run_dir, ref)
+            names.append(ref)
+    files = []
+    for name in sorted(set(names)):
+        path = evidence_file(run_dir, name)
+        safe_content(name, path.read_bytes())
+        files.append((name, path))
+    with tempfile.NamedTemporaryFile(dir=str(run_dir), prefix='.evidence-', suffix='.tmp', delete=False) as stream:
+        temporary = pathlib.Path(stream.name)
+    try:
+        with zipfile.ZipFile(str(temporary), 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, path in files:
+                entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                entry.compress_type = zipfile.ZIP_DEFLATED
+                archive.writestr(entry, path.read_bytes())
+        target = run_dir / 'evidence.zip'
+        if target.is_file():
+            previous = target.read_bytes()
+            if previous == temporary.read_bytes():
+                return target
+            backup = run_dir / 'evidence-{}.zip'.format(hashlib.sha256(previous).hexdigest()[:12])
+            if not backup.exists():
+                backup.write_bytes(previous)
+        temporary.replace(target)
+        return target
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def duration(start, end):
@@ -32,8 +118,10 @@ def duration(start, end):
 def evidence_file(run_dir, ref):
     if not isinstance(ref, str) or not ref or '..' in pathlib.PurePath(ref).parts or pathlib.PurePath(ref).is_absolute():
         raise ValueError('Evidence reference must be a file inside the run report directory')
-    if not (run_dir / ref).is_file():
+    path = run_dir / ref
+    if not path.is_file() or os.path.commonpath((str(run_dir.resolve()), str(path.resolve()))) != str(run_dir.resolve()):
         raise ValueError('Evidence file is missing: {}'.format(run_dir / ref))
+    return path
 
 
 def count(value, label):
@@ -100,13 +188,16 @@ def report(run):
         raise ValueError('Verification log must contain the three fixed checks')
     checks = {row['check']: {'exit_code': int(row['exit_code']), 'seconds': int(row['seconds']), 'log': row['check'] + '.log'} for row in rows}
     obs = observations(run, run_dir)
+    patch = candidate_patch()
+    (run_dir / 'candidate.patch').write_bytes(patch)
     result = {
         'schema_version': 1, 'run_id': run, 'task': 'django__django-11019',
         'baseline_commit': BASE, 'current_commit': git('rev-parse', 'HEAD'),
         'python_version': subprocess.check_output([str(ROOT / '.venv' / 'bin' / 'python'), '--version'], text=True).strip(),
         'verification': {'checks': checks, 'all_passed': all(item['exit_code'] == 0 for item in checks.values()), 'provenance': 'EXECUTED_BY_VERIFY_SH'},
-        'changed_files': len(git('status', '--porcelain').splitlines()),
-        'changed_files_provenance': 'GIT_STATUS_AT_REPORT_TIME', 'observations': obs,
+        'changed_files': len(git('status', '--porcelain', '--untracked-files=all').splitlines()),
+        'changed_files_provenance': 'GIT_STATUS_AT_REPORT_TIME', 'candidate_patch': 'candidate.patch',
+        'observations': obs,
     }
     (run_dir / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
     lines = ['# AICA005 run {} evidence'.format(run), '',
@@ -114,6 +205,7 @@ def report(run):
              '- Current Django HEAD: `{}`'.format(result['current_commit']),
              '- Verification: {}'.format('PASS' if result['verification']['all_passed'] else 'FAIL'),
              '- Changed files: {} (git status at report time)'.format(result['changed_files']),
+             '- Candidate patch: `candidate.patch` (tracked and untracked Django changes)',
              '- Agent execution: {} ({})'.format(obs['agent_execution_status'], obs['provenance']),
              '- Provider / model / mode: {} / {} / {}'.format(shown(obs['provider']), shown(obs['model']), shown(obs['agent_mode'])),
              '- Available resource limits: {}'.format(obs['resource_limits_note']),
@@ -129,8 +221,10 @@ def report(run):
               'Verification values come from executed commands. Agent observations come from `observations.json` and attached evidence; this script does not run Copilot.',
               'A task-level PASS still requires engineer review of the patch and remaining risks.', '']
     (run_dir / 'report.md').write_text('\n'.join(lines), encoding='utf-8')
+    archive = package_evidence(run_dir, checks, obs)
     print(run_dir / 'report.md')
     print(run_dir / 'result.json')
+    print(archive)
 
 
 def token_reduction(a, b):
@@ -155,11 +249,15 @@ def compare():
         path = REPORTS / run / 'result.json'
         results[run] = json.loads(path.read_text(encoding='utf-8')) if path.is_file() else None
     a, b = results['A'], results['B']
-    reduction = token_reduction(a, b) if a and b else None
-    status = 'READY' if a and b and all(results[run]['observations']['agent_execution_status'] != 'NOT_OBSERVED' for run in ('A', 'B')) else 'PARTIAL'
+    observed = bool(a and b and all(results[run]['observations']['agent_execution_status'] != 'NOT_OBSERVED' for run in ('A', 'B')))
+    equivalent = bool(observed and a['verification']['all_passed'] and b['verification']['all_passed'])
+    reduction = token_reduction(a, b) if equivalent else None
+    outcome_equivalence = 'PASS' if equivalent else 'FAIL' if observed else 'UNKNOWN'
+    status = 'READY' if observed else 'PARTIAL'
     output = {'schema_version': 1, 'status': status, 'runs': results, 'token_reduction_percent': reduction,
               'token_reduction_provenance': 'PROVIDER_REPORTS_AND_MATCHING_RUN_METADATA' if reduction is not None else 'NOT_AVAILABLE',
-              'interpretation': 'One A/B comparison is exploratory, not statistically conclusive.'}
+              'outcome_equivalence': outcome_equivalence,
+              'interpretation': 'One A/B comparison is exploratory, not statistically conclusive. Different or failed outcomes do not support an efficiency conclusion.'}
     REPORTS.mkdir(exist_ok=True)
     (REPORTS / 'comparison.json').write_text(json.dumps(output, indent=2, sort_keys=True) + '\n', encoding='utf-8')
     lines = ['# AICA005 A/B comparison', '', 'Status: **{}**'.format(status), '',
@@ -172,11 +270,12 @@ def compare():
             lines.append('| {} | {} | {} | {} | {} | {} |'.format(run, obs['agent_execution_status'], 'PASS' if item['verification']['all_passed'] else 'FAIL', item['changed_files'], shown(obs['agent_seconds']), shown(obs['tokens']['total'])))
         else:
             lines.append('| {} | NOT_OBSERVED | NOT_AVAILABLE | NOT_AVAILABLE | NOT_AVAILABLE | NOT_AVAILABLE |'.format(run))
-    lines += ['', 'Token reduction: **{}**'.format('NOT_AVAILABLE' if reduction is None else '{}%'.format(reduction)),
+    lines += ['', 'Equivalent verified outcomes: **{}**'.format(outcome_equivalence),
+              'Token reduction: **{}**'.format('NOT_AVAILABLE' if reduction is None else '{}%'.format(reduction)),
               'Available limits A / B: {} / {}; confirm that the same account limits applied.'.format(
                   a['observations'].get('resource_limits_note', 'NOT_AVAILABLE') if a else 'NOT_AVAILABLE',
                   b['observations'].get('resource_limits_note', 'NOT_AVAILABLE') if b else 'NOT_AVAILABLE'),
-              'Formula: (Tokens A − Tokens B) / Tokens A × 100; used only with attached comparable provider records.',
+              'Formula: (Tokens A − Tokens B) / Tokens A × 100; used only with equivalent verified outcomes and attached comparable provider records.',
               'Tool calls and elapsed time are separate observables, not token estimates.',
               'A single comparison is exploratory. Judge resource use alongside verification and patch quality.', '']
     (REPORTS / 'comparison.md').write_text('\n'.join(lines), encoding='utf-8')
